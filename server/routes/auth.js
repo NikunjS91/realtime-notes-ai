@@ -13,17 +13,31 @@ router.get('/google', passport.authenticate('google', { scope: ['profile', 'emai
 // @desc    Google OAuth callback - create JWT and redirect
 router.get(
   '/google/callback',
-  passport.authenticate('google', { failureRedirect: `${process.env.CLIENT_URL}/login` }),
-  (req, res) => {
-    // Generate JWT token
-    const token = jwt.sign(
-      { userId: req.user._id },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-
-    // Redirect to frontend with token
-    res.redirect(`${process.env.CLIENT_URL}/auth/success?token=${token}`);
+  (req, res, next) => {
+    passport.authenticate('google', (err, user, info) => {
+      if (err) {
+        console.error('Google OAuth error:', err);
+        return res.redirect(`${process.env.CLIENT_URL}/login?error=oauth_error`);
+      }
+      if (!user) {
+        console.error('Google OAuth failed - no user:', info);
+        return res.redirect(`${process.env.CLIENT_URL}/login?error=no_user`);
+      }
+      req.logIn(user, (err) => {
+        if (err) {
+          console.error('Login error:', err);
+          return res.redirect(`${process.env.CLIENT_URL}/login?error=login_error`);
+        }
+        // Generate JWT token
+        const token = jwt.sign(
+          { userId: req.user._id },
+          process.env.JWT_SECRET,
+          { expiresIn: '7d' }
+        );
+        // Redirect to frontend with token
+        res.redirect(`${process.env.CLIENT_URL}/auth/success?token=${token}`);
+      });
+    })(req, res, next);
   }
 );
 
@@ -32,7 +46,7 @@ router.get(
 // @access  Private
 router.get('/me', authMiddleware, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select('-__v');
+    const user = await User.findById(req.user.userId).select('-__v');
     res.json(user);
   } catch (err) {
     res.status(500).json({ message: 'Server error' });

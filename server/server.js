@@ -7,7 +7,7 @@ const mongoose = require('mongoose');
 const passport = require('passport');
 const session = require('express-session');
 const connectDB = require('./config/db');
-require('./config/passport');
+require('./config/passport')(passport);
 
 const app = express();
 const server = http.createServer(app);

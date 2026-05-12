@@ -10,8 +10,10 @@ const AuthSuccess = () => {
   useEffect(() => {
     const token = searchParams.get('token');
     if (token) {
-      login(token);
-      navigate('/dashboard');
+      localStorage.setItem('token', token);
+      login(token).then(() => {
+        navigate('/dashboard');
+      });
     } else {
       navigate('/login');
     }

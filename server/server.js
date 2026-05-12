@@ -4,10 +4,24 @@ const cors = require('cors');
 const http = require('http');
 const { Server } = require('socket.io');
 const mongoose = require('mongoose');
+const passport = require('passport');
+const session = require('express-session');
 const connectDB = require('./config/db');
+require('./config/passport');
 
 const app = express();
 const server = http.createServer(app);
+
+// Session middleware
+app.use(session({
+  secret: process.env.JWT_SECRET,
+  resave: false,
+  saveUninitialized: false
+}));
+
+// Passport middleware
+app.use(passport.initialize());
+app.use(passport.session());
 
 // Socket.io setup
 const io = new Server(server, {

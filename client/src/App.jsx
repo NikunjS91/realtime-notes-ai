@@ -1,14 +1,43 @@
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import Login from './pages/Login';
+import AuthSuccess from './pages/AuthSuccess';
+import Dashboard from './pages/Dashboard';
+
+const PrivateRoute = ({ children }) => {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#0a192f] flex items-center justify-center">
+        <div className="text-white">Loading...</div>
+      </div>
+    );
+  }
+
+  return isAuthenticated ? children : <Navigate to="/login" />;
+};
+
 function App() {
   return (
-    <div className="min-h-screen bg-[#0a192f] flex flex-col items-center justify-center">
-      <h1 className="text-5xl font-bold text-white mb-4">
-        CollabNotes
-      </h1>
-      <p className="text-xl text-gray-400">
-        Real-time collaborative notes with AI summaries
-      </p>
-    </div>
-  )
+    <AuthProvider>
+      <Router>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/auth/success" element={<AuthSuccess />} />
+          <Route
+            path="/dashboard"
+            element={
+              <PrivateRoute>
+                <Dashboard />
+              </PrivateRoute>
+            }
+          />
+          <Route path="/" element={<Navigate to="/login" />} />
+        </Routes>
+      </Router>
+    </AuthProvider>
+  );
 }
 
-export default App
+export default App;

@@ -11,8 +11,8 @@ router.get('/', authMiddleware, async (req, res) => {
   try {
     const notes = await Note.find({
       $or: [
-        { owner: req.user.id },
-        { collaborators: req.user.id }
+        { owner: req.user._id },
+        { collaborators: req.user._id }
       ]
     }).populate('owner', 'name email avatar').populate('collaborators', 'name email avatar');
     res.json(notes);
@@ -30,7 +30,7 @@ router.post('/', authMiddleware, async (req, res) => {
     const note = new Note({
       title: title || 'Untitled Note',
       content: content || '',
-      owner: req.user.id,
+      owner: req.user._id,
       tags: tags || []
     });
     const savedNote = await note.save();
@@ -54,9 +54,9 @@ router.get('/:id', authMiddleware, async (req, res) => {
     }
 
     // Check if user is owner or collaborator
-    const isOwner = note.owner._id.toString() === req.user.id;
+    const isOwner = note.owner._id.toString() === req.user._id;
     const isCollaborator = note.collaborators.some(
-      col => col._id.toString() === req.user.id
+      col => col._id.toString() === req.user._id
     );
 
     if (!isOwner && !isCollaborator) {
@@ -73,6 +73,9 @@ router.get('/:id', authMiddleware, async (req, res) => {
 // @desc    Update note (owner or collaborator only)
 // @access  Private
 router.put('/:id', authMiddleware, async (req, res) => {
+  console.log('POST /notes hit')        // ADD THIS
+  console.log('req.user:', req.user)    // ADD THIS
+  console.log('req.body:', req.body)    // ADD THIS
   try {
     const note = await Note.findById(req.params.id);
 
@@ -81,8 +84,8 @@ router.put('/:id', authMiddleware, async (req, res) => {
     }
 
     // Check if user is owner or collaborator
-    const isOwner = note.owner.toString() === req.user.id;
-    const isCollaborator = note.collaborators.includes(req.user.id);
+    const isOwner = note.owner.toString() === req.user._id;
+    const isCollaborator = note.collaborators.includes(req.user._id);
 
     if (!isOwner && !isCollaborator) {
       return res.status(403).json({ message: 'Not authorized to update this note' });
@@ -122,7 +125,7 @@ router.delete('/:id', authMiddleware, async (req, res) => {
     }
 
     // Only owner can delete
-    if (note.owner.toString() !== req.user.id) {
+    if (note.owner.toString() !== req.user._id) {
       return res.status(403).json({ message: 'Only owner can delete this note' });
     }
 
@@ -147,7 +150,7 @@ router.post('/:id/collaborators', authMiddleware, async (req, res) => {
     }
 
     // Only owner can add collaborators
-    if (note.owner.toString() !== req.user.id) {
+    if (note.owner.toString() !== req.user._id) {
       return res.status(403).json({ message: 'Only owner can add collaborators' });
     }
 

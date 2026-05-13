@@ -44,13 +44,8 @@ router.get(
 // @route   GET /api/auth/me
 // @desc    Get current user
 // @access  Private
-router.get('/me', authMiddleware, async (req, res) => {
-  try {
-    const user = await User.findById(req.user.userId).select('-__v');
-    res.json(user);
-  } catch (err) {
-    res.status(500).json({ message: 'Server error' });
-  }
+router.get('/me', authMiddleware, (req, res) => {
+  res.json(req.user);
 });
 
 // @route   POST /api/auth/logout

@@ -1,23 +1,11 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './context/AuthContext';
+import { AuthProvider } from './context/AuthContext';
 import Login from './pages/Login';
 import AuthSuccess from './pages/AuthSuccess';
 import Dashboard from './pages/Dashboard';
-import NoteEditor from './components/NoteEditor';
-
-const PrivateRoute = ({ children }) => {
-  const { isAuthenticated, isLoading } = useAuth();
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-[#0a192f] flex items-center justify-center">
-        <div className="text-white">Loading...</div>
-      </div>
-    );
-  }
-
-  return isAuthenticated ? children : <Navigate to="/login" />;
-};
+import NotePage from './pages/NotePage';
+import Layout from './components/Layout';
+import PrivateRoute from './components/PrivateRoute';
 
 function App() {
   return (
@@ -27,22 +15,16 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/auth/success" element={<AuthSuccess />} />
           <Route
-            path="/dashboard"
             element={
               <PrivateRoute>
-                <Dashboard />
+                <Layout />
               </PrivateRoute>
             }
-          />
-          <Route
-            path="/note/:id"
-            element={
-              <PrivateRoute>
-                <NoteEditor />
-              </PrivateRoute>
-            }
-          />
-          <Route path="/" element={<Navigate to="/login" />} />
+          >
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/note/:id" element={<NotePage />} />
+          </Route>
+          <Route path="/" element={<Navigate to="/dashboard" />} />
         </Routes>
       </Router>
     </AuthProvider>

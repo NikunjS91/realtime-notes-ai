@@ -48,35 +48,8 @@ app.get('/', (req, res) => {
 });
 
 // Socket.io connection handling
-io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
-
-  socket.on('join-note', (noteId) => {
-    socket.join(noteId);
-    console.log(`User ${socket.id} joined note: ${noteId}`);
-  });
-
-  socket.on('leave-note', (noteId) => {
-    socket.leave(noteId);
-    console.log(`User ${socket.id} left note: ${noteId}`);
-  });
-
-  socket.on('note-update', (data) => {
-    socket.to(data.noteId).emit('note-updated', data);
-  });
-
-  socket.on('cursor-move', (data) => {
-    socket.to(data.noteId).emit('cursor-updated', {
-      userId: socket.id,
-      position: data.position,
-      userName: data.userName
-    });
-  });
-
-  socket.on('disconnect', () => {
-    console.log('User disconnected:', socket.id);
-  });
-});
+const { setupNoteSocket } = require('./socket/noteSocket');
+setupNoteSocket(io);
 
 // Start server
 const PORT = process.env.PORT || 5000;

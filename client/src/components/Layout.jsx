@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
-import { Outlet, useNavigate, useParams } from 'react-router-dom';
+import { Outlet, useNavigate, useParams,useLocation} from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+
 
 const API_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:5001';
 
 const Layout = () => {
   const { user, logout, token } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { id: noteId } = useParams();
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -16,7 +18,7 @@ const Layout = () => {
 
   useEffect(() => {
     fetchNotes();
-  }, []);
+  }, [location.pathname]);
 
   const fetchNotes = async () => {
     try {
@@ -37,8 +39,9 @@ const Layout = () => {
       const res = await axios.post(
         `${API_URL}/api/notes`,
         { title: 'Untitled', content: '' },
-        { headers: { Authorization: `Bearer ${token}` }
-      });
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      await fetchNotes();
       navigate(`/note/${res.data._id}`);
     } catch (err) {
       console.error('Error creating note:', err);

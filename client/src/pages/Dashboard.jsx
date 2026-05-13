@@ -6,14 +6,15 @@ const Dashboard = () => {
   return (
     <div className="h-screen flex items-center justify-center">
       <div className="text-center">
-        <h1 className="text-3xl font-bold text-white mb-4">
-          Welcome to CollabNotes
+        <div className="text-6xl mb-6">📝</div>
+        <h1 className="text-2xl font-bold text-white mb-3">
+          Welcome back, {user?.name?.split(' ')[0] || 'there'}!
         </h1>
         <p className="text-gray-400 mb-2">
-          Select a note from the sidebar or create a new one.
+          Select a note from the sidebar to start editing
         </p>
         <p className="text-gray-500 text-sm">
-          Hi {user?.name || 'there'}! Your notes are syncing in real-time.
+          or click <span className="text-green-400 font-medium">+ New Note</span> to create one
         </p>
       </div>
     </div>

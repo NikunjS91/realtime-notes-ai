@@ -5,6 +5,8 @@ export const useNoteSync = (noteId, token) => {
   const [content, setContent] = useState('');
   const [title, setTitle] = useState('');
   const [cursors, setCursors] = useState({});
+  const [summary, setSummary] = useState('');
+  const [tags, setTags] = useState([]);
   const { socket } = useSocket(token);
   const debounceRef = useRef(null);
 
@@ -16,6 +18,12 @@ export const useNoteSync = (noteId, token) => {
     socket.on('note-data', (data) => {
       setTitle(data.title);
       setContent(data.content);
+      setSummary(data.summary || '');
+      setTags(data.tags || []);
+    });
+
+    socket.on('tags-updated', (data) => {
+      setTags(data.tags);
     });
 
     socket.on('note-updated', (data) => {
@@ -38,6 +46,7 @@ export const useNoteSync = (noteId, token) => {
       socket.off('note-data');
       socket.off('note-updated');
       socket.off('cursor-updated');
+      socket.off('tags-updated');
     };
   }, [socket, noteId]);
 
@@ -71,11 +80,21 @@ export const useNoteSync = (noteId, token) => {
     }
   }, [socket, noteId]);
 
+  const updateTags = useCallback((newTags) => {
+    setTags(newTags);
+    if (socket && noteId) {
+      socket.emit('tags-update', { noteId, tags: newTags });
+    }
+  }, [socket, noteId]);
+
   return {
     content,
     title,
+    summary,
+    tags,
     cursors,
     updateNote,
-    updateCursor
+    updateCursor,
+    updateTags
   };
 };

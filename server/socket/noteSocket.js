@@ -17,7 +17,9 @@ const setupNoteSocket = (io) => {
         if (note) {
           socket.emit('note-data', {
             title: note.title,
-            content: note.content
+            content: note.content,
+            summary: note.summary || '',
+            tags: note.tags || []
           });
         }
       } catch (err) {
@@ -36,8 +38,17 @@ const setupNoteSocket = (io) => {
       if (now - lastSaved >= DEBOUNCE_DELAY) {
         lastSavedTimes.set(noteId, now);
         try {
-          await Note.findByIdAndUpdate(noteId, { title, content }, { new: true });
-          console.log(`Note ${noteId} saved to MongoDB`);
+                  const note = await Note.findById(noteId);
+            if (note) {
+            if (content !== undefined && content !== note.content) {
+            note.versions.push({ content: note.content, savedAt: Date.now() });
+            if (note.versions.length > 20) note.versions = note.versions.slice(-20);
+            }
+            if (title !== undefined) note.title = title;
+            if (content !== undefined) note.content = content;
+            await note.save();
+            console.log(`Note ${noteId} saved with version history`);
+            }
         } catch (err) {
           console.error('Error saving note:', err);
         }
@@ -51,6 +62,16 @@ const setupNoteSocket = (io) => {
         userName,
         position
       });
+    });
+
+    socket.on('tags-update', async (data) => {
+      const { noteId, tags } = data;
+      try {
+        await Note.findByIdAndUpdate(noteId, { tags }, { new: true });
+        socket.to(noteId).emit('tags-updated', { tags });
+      } catch (err) {
+        console.error('Error updating tags:', err);
+      }
     });
 
     socket.on('leave-note', (data) => {

@@ -54,9 +54,13 @@ router.get('/:id', authMiddleware, async (req, res) => {
     }
 
     // Check if user is owner or collaborator
-    const isOwner = note.owner._id.toString() === req.user._id;
+    const ownerId = note.owner._id ? note.owner._id.toString() : note.owner.toString();
+    const isOwner = ownerId === req.user._id.toString();
     const isCollaborator = note.collaborators.some(
-      col => col._id.toString() === req.user._id
+      col => {
+        const colId = col._id ? col._id.toString() : col.toString();
+        return colId === req.user._id.toString();
+      }
     );
 
     if (!isOwner && !isCollaborator) {
@@ -73,9 +77,6 @@ router.get('/:id', authMiddleware, async (req, res) => {
 // @desc    Update note (owner or collaborator only)
 // @access  Private
 router.put('/:id', authMiddleware, async (req, res) => {
-  console.log('POST /notes hit')        // ADD THIS
-  console.log('req.user:', req.user)    // ADD THIS
-  console.log('req.body:', req.body)    // ADD THIS
   try {
     const note = await Note.findById(req.params.id);
 
@@ -84,8 +85,14 @@ router.put('/:id', authMiddleware, async (req, res) => {
     }
 
     // Check if user is owner or collaborator
-    const isOwner = note.owner.toString() === req.user._id;
-    const isCollaborator = note.collaborators.includes(req.user._id);
+    const ownerId = note.owner._id ? note.owner._id.toString() : note.owner.toString();
+    const isOwner = ownerId === req.user._id.toString();
+    const isCollaborator = note.collaborators.some(
+      col => {
+        const colId = col._id ? col._id.toString() : col.toString();
+        return colId === req.user._id.toString();
+      }
+    );
 
     if (!isOwner && !isCollaborator) {
       return res.status(403).json({ message: 'Not authorized to update this note' });
@@ -106,8 +113,16 @@ router.put('/:id', authMiddleware, async (req, res) => {
     if (tags !== undefined) note.tags = tags;
     if (summary !== undefined) note.summary = summary;
 
+    // Limit versions to last 20
+    if (note.versions.length > 20) {
+      note.versions = note.versions.slice(-20);
+    }
+
     const updatedNote = await note.save();
-    res.json(updatedNote);
+    const populatedNote = await Note.findById(note._id)
+      .populate('owner', 'name email avatar')
+      .populate('collaborators', 'name email avatar');
+    res.json(populatedNote);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -125,7 +140,8 @@ router.delete('/:id', authMiddleware, async (req, res) => {
     }
 
     // Only owner can delete
-    if (note.owner.toString() !== req.user._id) {
+    const ownerId = note.owner._id ? note.owner._id.toString() : note.owner.toString();
+    if (ownerId !== req.user._id.toString()) {
       return res.status(403).json({ message: 'Only owner can delete this note' });
     }
 
@@ -150,7 +166,8 @@ router.post('/:id/collaborators', authMiddleware, async (req, res) => {
     }
 
     // Only owner can add collaborators
-    if (note.owner.toString() !== req.user._id) {
+    const ownerId = note.owner._id ? note.owner._id.toString() : note.owner.toString();
+    if (ownerId !== req.user._id.toString()) {
       return res.status(403).json({ message: 'Only owner can add collaborators' });
     }
 
@@ -162,7 +179,10 @@ router.post('/:id/collaborators', authMiddleware, async (req, res) => {
     }
 
     // Check if already a collaborator
-    if (note.collaborators.includes(user._id)) {
+    const isAlreadyCollaborator = note.collaborators.some(
+      col => col.toString() === user._id.toString()
+    );
+    if (isAlreadyCollaborator) {
       return res.status(400).json({ message: 'User is already a collaborator' });
     }
 
@@ -179,6 +199,63 @@ router.post('/:id/collaborators', authMiddleware, async (req, res) => {
       .populate('collaborators', 'name email avatar');
 
     res.json(updatedNote);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @route   PATCH /api/notes/:id/restore
+// @desc    Restore note to a previous version
+// @access  Private
+router.patch('/:id/restore', authMiddleware, async (req, res) => {
+  try {
+    const { versionIndex } = req.body;
+
+    if (versionIndex === undefined || typeof versionIndex !== 'number') {
+      return res.status(400).json({ message: 'versionIndex is required and must be a number' });
+    }
+
+    const note = await Note.findById(req.params.id);
+
+    if (!note) {
+      return res.status(404).json({ message: 'Note not found' });
+    }
+
+    const ownerId = note.owner._id ? note.owner._id.toString() : note.owner.toString();
+    const isOwner = ownerId === req.user._id.toString();
+    const isCollaborator = note.collaborators.some(
+      col => {
+        const colId = col._id ? col._id.toString() : col.toString();
+        return colId === req.user._id.toString();
+      }
+    );
+
+    if (!isOwner && !isCollaborator) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    if (!note.versions || !note.versions[versionIndex]) {
+      return res.status(400).json({ message: 'Version not found' });
+    }
+
+    const oldContent = note.versions[versionIndex].content;
+
+    note.versions.push({
+      content: note.content,
+      savedAt: Date.now()
+    });
+
+    note.content = oldContent;
+
+    // Limit versions to last 20
+    if (note.versions.length > 20) {
+      note.versions = note.versions.slice(-20);
+    }
+
+    await note.save();
+
+    // Note: Socket broadcast handled by socket.io on update
+    res.json(note);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

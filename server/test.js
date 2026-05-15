@@ -1,0 +1,1 @@
+require('dotenv').config(); console.log('Key:', curl https://integrate.api.nvidia.com/v1/chat/completions   -H Authorization: Bearer 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   -H Content-Type: application/json   -d '{model:meta/llama-4-maverick-17b-128e-instruct,messages:[{role:user,content:Say hello}],max_tokens:50}'process.env.NIM_API_KEY);

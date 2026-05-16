@@ -7,7 +7,8 @@ module.exports = function(passport) {
       {
         clientID: process.env.GOOGLE_CLIENT_ID,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-        callbackURL: 'http://localhost:5001/api/auth/google/callback'
+        //callbackURL: 'http://localhost:5001/api/auth/google/callback'
+        callbackURL:"https://realtime-notes-ai-mb4-production.up.railway.app/api/auth/google/callback"
       },
       async (accessToken, refreshToken, profile, done) => {
         try {

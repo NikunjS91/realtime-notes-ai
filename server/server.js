@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const http = require('http');
 const { Server } = require('socket.io');
 const mongoose = require('mongoose');
@@ -11,6 +12,9 @@ require('./config/passport')(passport);
 
 const app = express();
 const server = http.createServer(app);
+
+// Security middleware
+app.use(helmet());
 
 // Session middleware
 app.use(session({
@@ -35,7 +39,10 @@ const io = new Server(server, {
 connectDB();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: process.env.CLIENT_URL,
+  credentials: true
+}));
 app.use(express.json());
 
 // Routes
@@ -52,6 +59,15 @@ app.get('/', (req, res) => {
 // Socket.io connection handling
 const { setupNoteSocket } = require('./socket/noteSocket');
 setupNoteSocket(io);
+
+// Serve frontend in production
+if (process.env.NODE_ENV === 'production') {
+  const path = require('path');
+  app.use(express.static(path.join(__dirname, '../client/dist')));
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../client/dist/index.html'));
+  });
+}
 
 // Start server
 const PORT = process.env.PORT || 5000;

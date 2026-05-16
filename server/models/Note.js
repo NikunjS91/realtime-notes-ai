@@ -25,6 +25,14 @@ const noteSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  isArchived: {
+    type: Boolean,
+    default: false
+  },
+  archivedAt: {
+    type: Date,
+    default: null
+  },
   summary: {
     type: String
   },

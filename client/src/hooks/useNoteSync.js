@@ -9,6 +9,17 @@ export const useNoteSync = (noteId, token) => {
   const [tags, setTags] = useState([]);
   const { socket } = useSocket(token);
   const debounceRef = useRef(null);
+  const aiTitleSetRef = useRef(false);
+
+  // Reset all state when switching notes
+  useEffect(() => {
+    setTitle('');
+    setContent('');
+    setSummary('');
+    setTags([]);
+    setCursors({});
+    aiTitleSetRef.current = false;
+  }, [noteId]);
 
   useEffect(() => {
     if (!socket || !noteId) return;
@@ -16,7 +27,9 @@ export const useNoteSync = (noteId, token) => {
     socket.emit('join-note', { noteId });
 
     socket.on('note-data', (data) => {
-      setTitle(data.title);
+      if (!aiTitleSetRef.current) {
+        setTitle(data.title);
+      }
       setContent(data.content);
       setSummary(data.summary || '');
       setTags(data.tags || []);
@@ -69,6 +82,11 @@ export const useNoteSync = (noteId, token) => {
     }, 300);
   }, [socket, noteId]);
 
+  const lockTitle = useCallback((newTitle) => {
+    aiTitleSetRef.current = true;
+    setTitle(newTitle);
+  }, []);
+
   const updateCursor = useCallback((position) => {
     if (socket && noteId) {
       socket.emit('cursor-move', {
@@ -95,6 +113,7 @@ export const useNoteSync = (noteId, token) => {
     cursors,
     updateNote,
     updateCursor,
-    updateTags
+    updateTags,
+    lockTitle
   };
 };

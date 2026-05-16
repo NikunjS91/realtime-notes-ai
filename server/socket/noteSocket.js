@@ -1,7 +1,7 @@
 const Note = require('../models/Note');
 
 const lastSavedTimes = new Map();
-const DEBOUNCE_DELAY = 2000;
+const DEBOUNCE_DELAY = 30000;
 
 const setupNoteSocket = (io) => {
   io.on('connection', (socket) => {
@@ -36,22 +36,26 @@ const setupNoteSocket = (io) => {
       const lastSaved = lastSavedTimes.get(noteId) || 0;
 
       if (now - lastSaved >= DEBOUNCE_DELAY) {
-        lastSavedTimes.set(noteId, now);
-        try {
-                  const note = await Note.findById(noteId);
-            if (note) {
-            if (content !== undefined && content !== note.content) {
-            note.versions.push({ content: note.content, savedAt: Date.now() });
-            if (note.versions.length > 20) note.versions = note.versions.slice(-20);
-            }
-            if (title !== undefined) note.title = title;
-            if (content !== undefined) note.content = content;
-            await note.save();
-            console.log(`Note ${noteId} saved with version history`);
-            }
-        } catch (err) {
-          console.error('Error saving note:', err);
-        }
+  lastSavedTimes.set(noteId, now);
+  try {
+    const note = await Note.findById(noteId);
+    if (note) {
+      const contentChanged = content !== undefined && content !== note.content;
+      const significantChange = contentChanged &&
+        Math.abs((content?.length || 0) - (note.content?.length || 0)) > 20;
+
+      if (significantChange) {
+        note.versions.push({ content: note.content, savedAt: Date.now() });
+        if (note.versions.length > 20) note.versions = note.versions.slice(-20);
+      }
+      if (title !== undefined) note.title = title;
+      if (content !== undefined) note.content = content;
+      await note.save();
+      console.log(`Note ${noteId} saved${significantChange ? ' with new version' : ''}`);
+    }
+  } catch (err) {
+    console.error('Error saving note:', err);
+  }
       }
     });
 

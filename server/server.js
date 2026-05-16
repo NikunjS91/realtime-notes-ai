@@ -42,6 +42,7 @@ app.use(express.json());
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/notes', require('./routes/notes'));
 app.use('/api/summary', require('./routes/summary'));
+app.use('/api/ai/suggest', require('./routes/aiSuggest'));
 
 // Basic route
 app.get('/', (req, res) => {

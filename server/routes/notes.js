@@ -9,11 +9,13 @@ const authMiddleware = require('../middleware/authMiddleware');
 // @access  Private
 router.get('/', authMiddleware, async (req, res) => {
   try {
+    const { showArchived } = req.query;
     const notes = await Note.find({
       $or: [
         { owner: req.user._id },
         { collaborators: req.user._id }
-      ]
+      ],
+      isArchived: showArchived === 'true' ? true : false
     }).populate('owner', 'name email avatar').populate('collaborators', 'name email avatar');
     res.json(notes);
   } catch (error) {
@@ -258,6 +260,28 @@ router.patch('/:id/restore', authMiddleware, async (req, res) => {
     res.json(note);
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+});
+
+// @route   PATCH /api/notes/:id/archive
+// @desc    Toggle archive status
+// @access  Private
+router.patch('/:id/archive', authMiddleware, async (req, res) => {
+  try {
+    const note = await Note.findById(req.params.id);
+    if (!note) return res.status(404).json({ message: 'Note not found' });
+
+    const ownerId = note.owner._id ? note.owner._id.toString() : note.owner.toString();
+    if (ownerId !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Only owner can archive' });
+    }
+
+    note.isArchived = !note.isArchived;
+    note.archivedAt = note.isArchived ? new Date() : null;
+    await note.save();
+    res.json({ isArchived: note.isArchived });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 });
 

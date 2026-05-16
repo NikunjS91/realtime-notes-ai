@@ -1,18 +1,18 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Outlet, useNavigate, useParams, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 
 const API_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:5001';
 
-// Trash drop animation component
 const TrashAnimation = ({ onComplete }) => {
   useEffect(() => {
     const t = setTimeout(onComplete, 1200);
     return () => clearTimeout(t);
   }, []);
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 999, pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9998, pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ animation: 'trashDrop 1.2s cubic-bezier(0.25,0.46,0.45,0.94) forwards', fontSize: '48px' }}>🗑️</div>
       <style>{`
         @keyframes trashDrop {
@@ -28,14 +28,13 @@ const TrashAnimation = ({ onComplete }) => {
   );
 };
 
-// Archive animation component  
 const ArchiveAnimation = ({ onComplete }) => {
   useEffect(() => {
     const t = setTimeout(onComplete, 1500);
     return () => clearTimeout(t);
   }, []);
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 999, pointerEvents: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9998, pointerEvents: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
       <div style={{ animation: 'archiveFloat 1.5s cubic-bezier(0.16,1,0.3,1) forwards', fontSize: '40px' }}>📦</div>
       <div style={{ animation: 'archiveText 1.5s ease forwards', fontSize: '13px', fontWeight: 500, color: 'rgba(255,255,255,0.7)', fontFamily: "'DM Sans', sans-serif" }}>Archived</div>
       <style>{`
@@ -69,23 +68,24 @@ const Layout = () => {
   const [activeTags, setActiveTags] = useState([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
-
-  // Animation state
   const [showTrash, setShowTrash] = useState(false);
   const [showArchiveAnim, setShowArchiveAnim] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [archivingId, setArchivingId] = useState(null);
-
-  // Note card menu
   const [openMenuId, setOpenMenuId] = useState(null);
-
-  const touchStart = useRef(null);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
 
   useEffect(() => { fetchNotes(); }, [location.pathname, showArchived]);
 
+  // Close menu when clicking outside both the note card AND the portal menu
   useEffect(() => {
     const handler = (e) => {
-      if (!e.target.closest('.note-menu')) setOpenMenuId(null);
+      if (
+        !e.target.closest('.note-menu-trigger') &&
+        !e.target.closest('.note-portal-menu')
+      ) {
+        setOpenMenuId(null);
+      }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -126,11 +126,7 @@ const Layout = () => {
     e?.stopPropagation();
     setOpenMenuId(null);
     setDeletingId(noteId);
-
-    // Play trash animation first
     setShowTrash(true);
-
-    // Wait for animation then delete
     setTimeout(async () => {
       try {
         await axios.delete(`${API_URL}/api/notes/${noteId}`, {
@@ -151,7 +147,6 @@ const Layout = () => {
     setOpenMenuId(null);
     setArchivingId(noteId);
     setShowArchiveAnim(true);
-
     setTimeout(async () => {
       try {
         await axios.patch(`${API_URL}/api/notes/${noteId}/archive`, {}, {
@@ -171,9 +166,12 @@ const Layout = () => {
 
   const filteredNotes = notes
     .filter(note => {
-      const matchesSearch = note.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      const matchesSearch =
+        note.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         note.content?.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesTags = activeTags.length === 0 || activeTags.every(tag => note.tags?.includes(tag));
+      const matchesTags =
+        activeTags.length === 0 ||
+        activeTags.every(tag => note.tags?.includes(tag));
       return matchesSearch && matchesTags;
     })
     .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
@@ -193,24 +191,28 @@ const Layout = () => {
     return content.replace(/\n/g, ' ').slice(0, 80) + (content.length > 80 ? '…' : '');
   };
 
-  const getInitials = (name) => name?.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?';
-  const toggleTag = (tag) => setActiveTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
+  const getInitials = (name) =>
+    name?.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?';
+
+  const toggleTag = (tag) =>
+    setActiveTags(prev =>
+      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+    );
+
+  const activeNote = notes.find(n => n._id === openMenuId);
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ fontFamily: "'DM Sans', sans-serif" }}>
 
-      {/* Animations */}
       {showTrash && <TrashAnimation onComplete={() => setShowTrash(false)} />}
       {showArchiveAnim && <ArchiveAnimation onComplete={() => setShowArchiveAnim(false)} />}
 
-      {/* Mobile overlay */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-20 md:hidden"
           style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
           onClick={() => setSidebarOpen(false)} />
       )}
 
-      {/* Mobile hamburger */}
       <button onClick={() => setSidebarOpen(!sidebarOpen)}
         className="fixed top-4 left-4 z-30 md:hidden flex items-center justify-center w-9 h-9 rounded-xl"
         style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)' }}>
@@ -218,7 +220,8 @@ const Layout = () => {
       </button>
 
       {/* SIDEBAR */}
-      <div className={`fixed md:relative z-30 md:z-auto h-full flex flex-col transition-transform duration-300 ease-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}
+      <div
+        className={`fixed md:relative z-30 md:z-auto h-full flex flex-col transition-transform duration-300 ease-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}
         style={{ width: '280px', flexShrink: 0, background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(32px)', borderRight: '1px solid rgba(255,255,255,0.06)', boxShadow: '4px 0 32px rgba(0,0,0,0.3)' }}>
 
         {/* Header */}
@@ -227,8 +230,8 @@ const Layout = () => {
             <div className="flex items-center justify-center w-8 h-8 rounded-lg"
               style={{ background: 'linear-gradient(135deg, #10b981, #059669)', boxShadow: '0 4px 12px rgba(16,185,129,0.3)' }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
               </svg>
             </div>
             <span className="font-bold text-white" style={{ fontSize: '15px', letterSpacing: '-0.01em' }}>CollabNotes</span>
@@ -238,7 +241,9 @@ const Layout = () => {
             style={{ background: creating ? 'rgba(16,185,129,0.3)' : 'linear-gradient(135deg, #10b981, #059669)', color: 'white', boxShadow: creating ? 'none' : '0 4px 16px rgba(16,185,129,0.25)', transition: 'all 0.2s' }}
             onMouseEnter={e => { if (!creating) e.currentTarget.style.transform = 'translateY(-1px)'; }}
             onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}>
-            {creating ? <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white" style={{ animation: 'spin 1s linear infinite' }} /> : <><span style={{ fontSize: '18px', lineHeight: 1 }}>+</span><span>New Note</span></>}
+            {creating
+              ? <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white" style={{ animation: 'spin 1s linear infinite' }} />
+              : <><span style={{ fontSize: '18px', lineHeight: 1 }}>+</span><span>New Note</span></>}
           </button>
         </div>
 
@@ -246,11 +251,11 @@ const Layout = () => {
         <div className="px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
           <div className="relative">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2">
-              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+              <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
             </svg>
             <input type="text" placeholder="Search notes..." value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="w-full pl-8 pr-3 py-2 text-sm rounded-lg outline-none"
+              className="w-full pl-8 pr-3 py-2 rounded-lg outline-none"
               style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.8)', fontSize: '13px', transition: 'border-color 0.2s' }}
               onFocus={e => e.target.style.borderColor = 'rgba(16,185,129,0.4)'}
               onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.08)'} />
@@ -260,8 +265,8 @@ const Layout = () => {
         {/* Archive toggle */}
         <div className="px-4 py-2 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
           <button onClick={() => setShowArchived(!showArchived)}
-            className="flex items-center gap-2 text-xs transition-all"
-            style={{ color: showArchived ? '#f59e0b' : 'rgba(255,255,255,0.35)' }}>
+            className="flex items-center gap-2 text-xs"
+            style={{ color: showArchived ? '#f59e0b' : 'rgba(255,255,255,0.35)', transition: 'color 0.15s' }}>
             <span>{showArchived ? '📦' : '📁'}</span>
             <span>{showArchived ? 'Archived notes' : 'Active notes'}</span>
           </button>
@@ -292,7 +297,7 @@ const Layout = () => {
         <div className="flex-1 overflow-y-auto py-2" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.1) transparent' }}>
           {loading ? (
             <div className="px-4 space-y-3 mt-2">
-              {[1,2,3,4].map(i => (
+              {[1, 2, 3, 4].map(i => (
                 <div key={i} className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', animation: 'pulse 2s ease-in-out infinite' }}>
                   <div className="h-3 rounded-full mb-2" style={{ background: 'rgba(255,255,255,0.08)', width: '70%' }} />
                   <div className="h-2 rounded-full" style={{ background: 'rgba(255,255,255,0.05)', width: '100%' }} />
@@ -315,7 +320,7 @@ const Layout = () => {
 
                 return (
                   <div key={note._id}
-                    className="relative rounded-xl overflow-visible note-menu"
+                    className="relative rounded-xl"
                     style={{
                       animation: `slideIn 0.3s ease-out ${i * 0.04}s both`,
                       opacity: (isDeleting || isArchiving) ? 0 : 1,
@@ -323,36 +328,59 @@ const Layout = () => {
                       transition: 'opacity 0.3s ease, transform 0.4s cubic-bezier(0.16,1,0.3,1)'
                     }}>
 
-                    {/* Note card */}
-                    <div onClick={() => { navigate(`/note/${note._id}`); setSidebarOpen(false); setOpenMenuId(null); }}
+                    <div
+                      onClick={() => { navigate(`/note/${note._id}`); setSidebarOpen(false); setOpenMenuId(null); }}
                       className="cursor-pointer p-3 rounded-xl relative"
                       style={{ background: isActive ? 'rgba(16,185,129,0.1)' : 'rgba(255,255,255,0.03)', border: `1px solid ${isActive ? 'rgba(16,185,129,0.3)' : 'rgba(255,255,255,0.06)'}`, transition: 'background 0.15s, border-color 0.15s' }}
                       onMouseEnter={e => { if (!isActive) { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; } }}
                       onMouseLeave={e => { if (!isActive) { e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'; } }}>
 
-                      {isActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-8 rounded-full" style={{ background: '#10b981', boxShadow: '0 0 8px #10b981' }} />}
+                      {isActive && (
+                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-8 rounded-full"
+                          style={{ background: '#10b981', boxShadow: '0 0 8px #10b981' }} />
+                      )}
 
-                      <div className="flex items-start justify-between gap-2 mb-1">
-                        <h3 className="font-semibold text-sm leading-tight truncate"
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <h3 className="font-semibold leading-tight truncate"
                           style={{ color: isActive ? '#10b981' : 'rgba(255,255,255,0.85)', fontSize: '13px' }}>
                           {note.title || 'Untitled'}
                         </h3>
+
                         <div className="flex items-center gap-1 shrink-0">
-                          <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: '11px' }}>{formatDate(note.updatedAt)}</span>
-                          {/* 3-dot menu */}
+                          <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: '11px' }}>
+                            {formatDate(note.updatedAt)}
+                          </span>
+
+                          {/* Three-dot button */}
                           <button
-                            onClick={e => { e.stopPropagation(); setOpenMenuId(openMenuId === note._id ? null : note._id); }}
-                            className="w-5 h-5 flex items-center justify-center rounded-md opacity-0 group-hover:opacity-100"
-                            style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px', background: 'transparent', transition: 'all 0.15s' }}
-                            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.opacity = '1'; }}
-                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}>
+                            className="note-menu-trigger"
+                            onClick={e => {
+                              e.stopPropagation();
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              setMenuPosition({ top: rect.top, left: rect.right + 8 });
+                              setOpenMenuId(openMenuId === note._id ? null : note._id);
+                            }}
+                            style={{
+                              width: '20px', height: '20px',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              borderRadius: '4px', border: 'none', cursor: 'pointer',
+                              color: 'rgba(255,255,255,0.5)', fontSize: '16px',
+                              background: openMenuId === note._id ? 'rgba(255,255,255,0.1)' : 'transparent',
+                              transition: 'background 0.15s',
+                              flexShrink: 0
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                            onMouseLeave={e => {
+                              if (openMenuId !== note._id) e.currentTarget.style.background = 'transparent';
+                            }}>
                             ⋮
                           </button>
                         </div>
                       </div>
 
                       {getPreview(note.content) && (
-                        <p className="text-xs mb-2" style={{ color: 'rgba(255,255,255,0.35)', fontSize: '12px', lineHeight: '1.4', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                        <p className="text-xs mb-2"
+                          style={{ color: 'rgba(255,255,255,0.35)', fontSize: '12px', lineHeight: '1.4', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                           {getPreview(note.content)}
                         </p>
                       )}
@@ -365,35 +393,14 @@ const Layout = () => {
                               #{tag}
                             </span>
                           ))}
-                          {note.tags.length > 3 && <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: '10px' }}>+{note.tags.length - 3}</span>}
+                          {note.tags.length > 3 && (
+                            <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: '10px' }}>
+                              +{note.tags.length - 3}
+                            </span>
+                          )}
                         </div>
                       )}
                     </div>
-
-                    {/* Dropdown menu */}
-                    {openMenuId === note._id && (
-                      <div className="absolute right-0 top-8 z-50 rounded-xl overflow-hidden"
-                        style={{ background: 'rgba(8,16,36,0.95)', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(20px)', boxShadow: '0 16px 40px rgba(0,0,0,0.5)', minWidth: '160px', animation: 'slideIn 0.15s ease' }}>
-
-                        <button onClick={e => handleArchiveNote(note._id, e)}
-                          className="w-full flex items-center gap-2.5 px-4 py-2.5 text-left text-sm"
-                          style={{ color: 'rgba(255,255,255,0.7)', borderBottom: '1px solid rgba(255,255,255,0.06)', transition: 'background 0.1s' }}
-                          onMouseEnter={e => e.currentTarget.style.background = 'rgba(245,158,11,0.1)'}
-                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                          <span>📦</span>
-                          <span>{note.isArchived ? 'Unarchive' : 'Archive'}</span>
-                        </button>
-
-                        <button onClick={e => handleDeleteNote(note._id, e)}
-                          className="w-full flex items-center gap-2.5 px-4 py-2.5 text-left text-sm"
-                          style={{ color: 'rgba(239,68,68,0.8)', transition: 'background 0.1s' }}
-                          onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.1)'}
-                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                          <span>🗑️</span>
-                          <span>Delete</span>
-                        </button>
-                      </div>
-                    )}
                   </div>
                 );
               })}
@@ -406,16 +413,21 @@ const Layout = () => {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               {user?.avatar ? (
-                <img src={user.avatar} alt={user.name} className="w-8 h-8 rounded-full object-cover" style={{ border: '2px solid rgba(16,185,129,0.3)' }} />
+                <img src={user.avatar} alt={user.name} className="w-8 h-8 rounded-full object-cover"
+                  style={{ border: '2px solid rgba(16,185,129,0.3)' }} />
               ) : (
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white"
+                <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-white"
                   style={{ background: 'linear-gradient(135deg, #10b981, #059669)', fontSize: '11px' }}>
                   {getInitials(user?.name)}
                 </div>
               )}
               <div>
-                <p className="text-xs font-medium" style={{ color: 'rgba(255,255,255,0.8)', fontSize: '12px' }}>{user?.name?.split(' ')[0]}</p>
-                <p className="text-xs" style={{ color: 'rgba(255,255,255,0.3)', fontSize: '10px' }}>{notes.length} notes</p>
+                <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '12px', fontWeight: 500 }}>
+                  {user?.name?.split(' ')[0]}
+                </p>
+                <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: '10px' }}>
+                  {notes.length} notes
+                </p>
               </div>
             </div>
             <button onClick={logout}
@@ -434,13 +446,52 @@ const Layout = () => {
         <Outlet />
       </div>
 
+      {/* Portal dropdown — renders on document.body above everything */}
+      {openMenuId && createPortal(
+        <div
+          className="note-portal-menu"
+          onClick={e => e.stopPropagation()}
+          style={{
+            position: 'fixed',
+            top: menuPosition.top,
+            left: menuPosition.left,
+            zIndex: 9999,
+            background: 'rgba(8,16,36,0.97)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            backdropFilter: 'blur(24px)',
+            WebkitBackdropFilter: 'blur(24px)',
+            boxShadow: '0 16px 40px rgba(0,0,0,0.6)',
+            minWidth: '160px',
+            borderRadius: '12px',
+            overflow: 'hidden',
+            animation: 'menuPop 0.15s cubic-bezier(0.16,1,0.3,1)'
+          }}>
+          <button
+            onClick={e => handleArchiveNote(openMenuId, e)}
+            style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 16px', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.75)', fontSize: '13px', cursor: 'pointer', textAlign: 'left', transition: 'background 0.1s' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(245,158,11,0.12)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+            <span style={{ fontSize: '16px' }}>📦</span>
+            <span>{activeNote?.isArchived ? 'Unarchive' : 'Archive'}</span>
+          </button>
+          <button
+            onClick={e => handleDeleteNote(openMenuId, e)}
+            style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 16px', background: 'transparent', border: 'none', color: 'rgba(239,68,68,0.85)', fontSize: '13px', cursor: 'pointer', textAlign: 'left', transition: 'background 0.1s' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.1)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+            <span style={{ fontSize: '16px' }}>🗑️</span>
+            <span>Delete</span>
+          </button>
+        </div>,
+        document.body
+      )}
+
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
-        @keyframes float1 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(20px,-20px)} }
-        @keyframes float2 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-20px,20px)} }
         @keyframes slideIn { from{opacity:0;transform:translateX(-12px)} to{opacity:1;transform:translateX(0)} }
-        @keyframes spin { to{transform:rotate(360deg)} }
-        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+        @keyframes menuPop  { from{opacity:0;transform:scale(0.92) translateY(-4px)} to{opacity:1;transform:scale(1) translateY(0)} }
+        @keyframes spin     { to{transform:rotate(360deg)} }
+        @keyframes pulse    { 0%,100%{opacity:1} 50%{opacity:0.5} }
       `}</style>
     </div>
   );
